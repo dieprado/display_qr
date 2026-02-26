@@ -14,6 +14,10 @@ body {
     padding: 20px;
 }
 
+body.display-page {
+    position: relative;
+}
+
 .container {
     background: white;
     border-radius: 20px;
@@ -96,6 +100,31 @@ h1 {
     font-weight: bold;
     color: #667eea;
     text-align: center;
+}
+
+#audio-unlock-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 50;
+}
+
+#audio-unlock-overlay.hidden {
+    display: none;
+}
+
+#audio-unlock-btn {
+    border: none;
+    border-radius: 12px;
+    padding: 16px 22px;
+    font-size: 1rem;
+    font-weight: 700;
+    background: #ffffff;
+    color: #2f3b66;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 
 /* Mobile responsiveness */

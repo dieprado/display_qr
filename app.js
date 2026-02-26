@@ -6,8 +6,53 @@ function showQR(option) {
     window.location.href = 'display.html';
 }
 
+let audioContext = null;
+
+function getAudioContext() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+        return null;
+    }
+    if (!audioContext) {
+        audioContext = new AudioContextClass();
+    }
+    return audioContext;
+}
+
+async function tryUnlockAudio() {
+    try {
+        const ctx = getAudioContext();
+        if (ctx.state !== 'running') {
+            await ctx.resume();
+        }
+        return ctx.state === 'running';
+    } catch (error) {
+        return false;
+    }
+}
+
+function showAudioUnlockOverlay(onUnlocked) {
+    const overlay = document.getElementById('audio-unlock-overlay');
+    const button = document.getElementById('audio-unlock-btn');
+    if (!overlay || !button) {
+        onUnlocked();
+        return;
+    }
+
+    overlay.classList.remove('hidden');
+    const unlock = async () => {
+        await tryUnlockAudio();
+        overlay.classList.add('hidden');
+        button.removeEventListener('click', unlock);
+        onUnlocked();
+    };
+
+    button.addEventListener('click', unlock);
+}
+
 // Check if we're on the display page
 if (window.location.pathname.includes('display.html')) {
+    document.body.classList.add('display-page');
     // Get the option from sessionStorage
     const option = sessionStorage.getItem('qrOption');
     
@@ -19,59 +64,91 @@ if (window.location.pathname.includes('display.html')) {
 function displayQRCode(option) {
     const qrDisplay = document.getElementById('qr-display');
     const timerDisplay = document.getElementById('timer');
+    const optionInfo = document.getElementById('option-info');
     
     // QR code URLs or data for different options
     const qrData = {
-        'start': 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=START',
-        'success': 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=SUCCESS',
-        'failure': 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=FAILURE',
-        'time': 'https://gopro.github.io/labs/control/precisiontime/'
+        'start': 'images/start.png',
+        'success': 'images/success.png',
+        'failure': 'images/failure.png',
+        'time': 'time_qr.html'
     };
     
     // Display QR code
     if (option === 'time') {
-        // For time option, display as iframe
-        qrDisplay.innerHTML = `<iframe src="${qrData[option]}" width="100%" height="500px" style="border:none;"></iframe>`;
+        // For time option, render only the precision time QR canvas.
+        optionInfo.textContent = 'Syncing precise time...';
+        qrDisplay.innerHTML = `<iframe id="time-qr-frame" src="${qrData[option]}" width="360" height="360" style="border:none;" title="Dynamic time QR"></iframe>`;
+
+        const onTimeMessage = (event) => {
+            if (!event.data || event.data.type !== 'precise-time') {
+                return;
+            }
+            optionInfo.textContent = event.data.value;
+        };
+        window.addEventListener('message', onTimeMessage);
+        window.addEventListener('beforeunload', () => {
+            window.removeEventListener('message', onTimeMessage);
+        }, { once: true });
     } else {
         // For other options, display as image
+        optionInfo.textContent = option.charAt(0).toUpperCase() + option.slice(1);
         qrDisplay.innerHTML = `<img src="${qrData[option]}" alt="${option} QR Code" />`;
     }
     
-    // Start countdown timer
-    let timeLeft = 5;
-    timerDisplay.textContent = timeLeft;
-    
-    const countdown = setInterval(() => {
-        timeLeft--;
+    const startCountdown = () => {
+        let timeLeft = 5;
         timerDisplay.textContent = timeLeft;
         
-        if (timeLeft <= 0) {
-            clearInterval(countdown);
-            playBeep();
-            // Return to main screen after beep
-            setTimeout(() => {
-                window.location.href = 'index.html';
-            }, 500);
+        const countdown = setInterval(() => {
+            timeLeft--;
+            timerDisplay.textContent = timeLeft;
+            
+            if (timeLeft <= 0) {
+                clearInterval(countdown);
+                playBeep();
+                // Return to main screen after beep
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 500);
+            }
+        }, 1000);
+    };
+
+    tryUnlockAudio().then((unlocked) => {
+        if (unlocked) {
+            startCountdown();
+            return;
         }
-    }, 1000);
+        showAudioUnlockOverlay(startCountdown);
+    });
 }
 
 function playBeep() {
-    // Create an audio context
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
+    const ctx = getAudioContext();
+    if (!ctx) {
+        if (navigator.vibrate) {
+            navigator.vibrate(200);
+        }
+        return;
+    }
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
     
     oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
+    gainNode.connect(ctx.destination);
     
     // Set beep frequency and duration
     oscillator.frequency.value = 800; // 800 Hz
     oscillator.type = 'sine';
     
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+    gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
     
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.5);
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.5);
+
+    if (navigator.vibrate) {
+        navigator.vibrate(200);
+    }
 }
