@@ -71,9 +71,23 @@ h1 {
     align-items: center;
 }
 
+#option-info {
+    font-size: 1.6em;
+    font-weight: 700;
+    color: #2f3b66;
+    text-align: center;
+    margin-bottom: 18px;
+    min-height: 1.4em;
+}
+
 #qr-display img {
     max-width: 100%;
     height: auto;
+    border-radius: 10px;
+}
+
+#qr-display iframe {
+    max-width: 100%;
     border-radius: 10px;
 }
 
@@ -106,5 +120,9 @@ h1 {
     
     #timer {
         font-size: 2.5em;
+    }
+
+    #option-info {
+        font-size: 1.2em;
     }
 }

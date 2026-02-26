@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Precision Time QR</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #qr-canvas {
+            width: 360px;
+            height: 360px;
+            image-rendering: pixelated;
+        }
+    </style>
+    <script src="https://gopro.github.io/labs/qrcode_canvas.js"></script>
+</head>
+<body>
+    <canvas id="qr-canvas" width="360" height="360"></canvas>
+
+    <script>
+        const qrCanvas = document.getElementById("qr-canvas");
+        const qrCtx = qrCanvas.getContext("2d");
+        let machineId = null;
+        let internetOffsetMs = 0;
+        let lastSyncAt = 0;
+        let lastPostedAt = 0;
+
+        function id5() {
+            return ([1111] + 1).replace(/1/g, (c) =>
+                (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] % 10) >> (c / 4)).toString()
+            );
+        }
+
+        function getMachineId() {
+            const stored = localStorage.getItem("MachineId");
+            if (stored) {
+                return stored;
+            }
+            const created = id5();
+            localStorage.setItem("MachineId", created);
+            return created;
+        }
+
+        function isDST(date) {
+            const januaryOffsetMinutes = new Date(date.getFullYear(), 0, 1).getTimezoneOffset();
+            return date.getTimezoneOffset() < januaryOffsetMinutes;
+        }
+
+        function pad2(v) {
+            return v < 10 ? "0" + v : String(v);
+        }
+
+        function pad3(v) {
+            if (v < 10) return "00" + v;
+            if (v < 100) return "0" + v;
+            return String(v);
+        }
+
+        function renderQRToCanvas(data) {
+            const qr = qrcode(0, "M");
+            qr.addData(data);
+            qr.make();
+
+            const count = qr.getModuleCount();
+            const size = qrCanvas.width;
+            const tileSize = Math.floor(size / (count + 2));
+
+            qrCtx.clearRect(0, 0, size, size);
+            for (let row = 0; row < count; row++) {
+                for (let col = 0; col < count; col++) {
+                    qrCtx.fillStyle = qr.isDark(row, col) ? "#000" : "#fff";
+                    qrCtx.fillRect((col + 1) * tileSize, (row + 1) * tileSize, tileSize, tileSize);
+                }
+            }
+        }
+
+        async function syncInternetTime() {
+            const start = performance.now();
+            const response = await fetch(
+                "https://worldtimeapi.org/api/timezone/Etc/UTC?ts=" + Date.now(),
+                { cache: "no-store" }
+            );
+            const end = performance.now();
+            const data = await response.json();
+            const serverTimeMs = Date.parse(data.utc_datetime || data.datetime);
+            const estimatedNowMs = serverTimeMs + ((end - start) / 2);
+            internetOffsetMs = estimatedNowMs - Date.now();
+            lastSyncAt = Date.now();
+        }
+
+        function getPreciseNow() {
+            return new Date(Date.now() + internetOffsetMs);
+        }
+
+        function buildCommand(now) {
+            const yy = pad2(now.getFullYear() - 2000);
+            const mm = pad2(now.getMonth() + 1);
+            const dd = pad2(now.getDate());
+            const h = pad2(now.getHours());
+            const m = pad2(now.getMinutes());
+            const s = pad2(now.getSeconds());
+            const ms = pad3(now.getMilliseconds());
+
+            let tz = now.getTimezoneOffset();
+            let td = 0;
+            if (isDST(now)) {
+                td = 1;
+                tz += 60;
+            }
+
+            tz = -tz;
+            if (tz % 60 === 0) {
+                tz = tz / 60;
+            }
+
+            return "oT" + yy + mm + dd + h + m + s + "." + ms + "oTD" + td + "oTZ" + tz + "oTI" + machineId;
+        }
+
+        function formatDisplayTime(now) {
+            const yyyy = now.getFullYear();
+            const mm = pad2(now.getMonth() + 1);
+            const dd = pad2(now.getDate());
+            const h = pad2(now.getHours());
+            const m = pad2(now.getMinutes());
+            const s = pad2(now.getSeconds());
+            const ms = pad3(now.getMilliseconds());
+            return yyyy + "-" + mm + "-" + dd + " " + h + ":" + m + ":" + s + "." + ms;
+        }
+
+        function frame() {
+            const now = getPreciseNow();
+            const cmd = buildCommand(now);
+            renderQRToCanvas(cmd);
+            if (Date.now() - lastPostedAt > 80) {
+                window.parent.postMessage(
+                    { type: "precise-time", value: formatDisplayTime(now) },
+                    "*"
+                );
+                lastPostedAt = Date.now();
+            }
+
+            if (Date.now() - lastSyncAt > 30000) {
+                syncInternetTime().catch(() => {});
+            }
+
+            requestAnimationFrame(frame);
+        }
+
+        machineId = getMachineId();
+        syncInternetTime()
+            .catch(() => {})
+            .finally(() => {
+                frame();
+            });
+    </script>
+</body>
+</html>
