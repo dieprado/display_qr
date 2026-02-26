@@ -124,12 +124,11 @@ function displayQRCode(option) {
         }, 1000);
     };
 
+    startCountdown();
     tryUnlockAudio().then((unlocked) => {
-        if (unlocked) {
-            startCountdown();
-            return;
+        if (!unlocked) {
+            showAudioUnlockOverlay(() => {});
         }
-        showAudioUnlockOverlay(startCountdown);
     });
 }
 

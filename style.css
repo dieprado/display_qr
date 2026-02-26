@@ -104,8 +104,9 @@ h1 {
 
 #audio-unlock-overlay {
     position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.45);
+    left: 50%;
+    bottom: 72px;
+    transform: translateX(-50%);
     display: flex;
     justify-content: center;
     align-items: center;
