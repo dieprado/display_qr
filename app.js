@@ -1,3 +1,5 @@
+const APP_VERSION = 'v1.0.0';
+
 // Function to show QR code
 function showQR(option) {
     // Store the selected option in sessionStorage
@@ -58,6 +60,13 @@ if (window.location.pathname.includes('display.html')) {
     
     if (option) {
         displayQRCode(option);
+    }
+}
+
+function setVersionBadge() {
+    const versionBadge = document.getElementById('version-badge');
+    if (versionBadge) {
+        versionBadge.textContent = APP_VERSION;
     }
 }
 
@@ -152,3 +161,5 @@ function playBeep() {
         navigator.vibrate(200);
     }
 }
+
+setVersionBadge();
